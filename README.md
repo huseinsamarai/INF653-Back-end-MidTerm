@@ -6,6 +6,7 @@
 PHP OOP REST API for quotations with three models: `quotes`, `authors`, and `categories`.  
 Designed for local development with XAMPP (MySQL) and tested with Postman. Edit code in VS Code and manage the database with phpMyAdmin. Repository hosting: GitHub.
 
+![Overview](image.png)
 ---
 
 ## Requirements (Automated Tests)

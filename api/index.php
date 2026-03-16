@@ -1,5 +1,10 @@
 <?php
 // api/index.php
+declare(strict_types=1);
+
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
+
 require_once __DIR__ . '/config/Database.php';
 require_once __DIR__ . '/helpers/Response.php';
 
@@ -14,30 +19,35 @@ $categoryModel = new Category($db);
 $quoteModel = new Quote($db);
 
 // parse path and method
-$method = $_SERVER['REQUEST_METHOD'];
-$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
-$base = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
+// compute base and path robustly
+$scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+$base = rtrim(dirname($scriptName), '/\\');
 $path = substr($uri, strlen($base));
-$path = trim($path, '/');
-$segments = explode('/', $path);
+$path = trim((string)$path, '/');
+$segments = $path === '' ? [] : explode('/', $path);
 $resource = $segments[0] ?? '';
 
+// parse query safely
 parse_str($_SERVER['QUERY_STRING'] ?? '', $query);
 
 // read JSON body for POST/PUT/DELETE (may be empty)
-$body = json_decode(file_get_contents('php://input'), true) ?: [];
+$rawInput = file_get_contents('php://input');
+$body = json_decode($rawInput ?: '{}', true);
+if (!is_array($body)) $body = [];
 
 // Helper functions to check existence
-function authorExists($db, $id) {
+function authorExists(PDO $db, int $id): bool {
     $stmt = $db->prepare("SELECT id FROM authors WHERE id = ?");
     $stmt->execute([$id]);
-    return (bool)$stmt->fetch();
+    return (bool)$stmt->fetchColumn();
 }
-function categoryExists($db, $id) {
+function categoryExists(PDO $db, int $id): bool {
     $stmt = $db->prepare("SELECT id FROM categories WHERE id = ?");
     $stmt->execute([$id]);
-    return (bool)$stmt->fetch();
+    return (bool)$stmt->fetchColumn();
 }
 
 // --- ROOT LANDING PAGE WITH RANDOM QUOTE AND INTERACTIVE BUTTON ---
@@ -54,8 +64,8 @@ if ($resource === '' || $resource === 'api') {
     }
 
     // Escape for HTML output
-    $quoteEsc = htmlspecialchars($quoteText, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $authorEsc = htmlspecialchars($authorName, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $quoteEsc = htmlspecialchars((string)$quoteText, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $authorEsc = htmlspecialchars((string)$authorName, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
     echo <<<HTML
 <!DOCTYPE html>
@@ -243,7 +253,7 @@ const resultEl = document.getElementById('api-result');
 
 function showResult(status, data) {
     const time = new Date().toISOString();
-    let out = `// ${time} — HTTP ${status}\\n`;
+    let out = `// ${time} — HTTP ${status}\n`;
     out += JSON.stringify(data, null, 2);
     resultEl.textContent = out;
 }
@@ -281,7 +291,8 @@ document.getElementById('listQuotes').addEventListener('click', () => callQuotes
 document.getElementById('listAuthors').addEventListener('click', () => callAuthors());
 document.getElementById('listCats').addEventListener('click', () => callCategories());
 
-// Quotes functions
+// ... (rest of client-side functions unchanged; same as your original) ...
+
 async function callQuotes() {
     const id = document.getElementById('q-id').value;
     const random = document.getElementById('q-random').checked;
@@ -460,13 +471,13 @@ switch ($method) {
             if (empty($body['quote']) || empty($body['author_id']) || empty($body['category_id'])) {
                 Response::json(['message' => 'Missing Required Parameters'], 400);
             }
-            if (!authorExists($db, $body['author_id'])) {
+            if (!authorExists($db, (int)$body['author_id'])) {
                 Response::json(['message' => 'author_id Not Found'], 400);
             }
-            if (!categoryExists($db, $body['category_id'])) {
+            if (!categoryExists($db, (int)$body['category_id'])) {
                 Response::json(['message' => 'category_id Not Found'], 400);
             }
-            $created = $quoteModel->create($body['quote'], $body['author_id'], $body['category_id']);
+            $created = $quoteModel->create($body['quote'], (int)$body['author_id'], (int)$body['category_id']);
             Response::json($created, 201);
         } elseif ($resource === 'authors') {
             if (empty($body['author'])) {
@@ -493,8 +504,8 @@ switch ($method) {
             }
             $existing = $quoteModel->get(['id' => (int)$body['id']]);
             if (!$existing) Response::json(['message' => 'No Quotes Found'], 200);
-            if (!authorExists($db, $body['author_id'])) Response::json(['message' => 'author_id Not Found'], 400);
-            if (!categoryExists($db, $body['category_id'])) Response::json(['message' => 'category_id Not Found'], 400);
+            if (!authorExists($db, (int)$body['author_id'])) Response::json(['message' => 'author_id Not Found'], 400);
+            if (!categoryExists($db, (int)$body['category_id'])) Response::json(['message' => 'category_id Not Found'], 400);
 
             $updated = $quoteModel->update((int)$body['id'], $body['quote'], (int)$body['author_id'], (int)$body['category_id']);
             Response::json($updated);
