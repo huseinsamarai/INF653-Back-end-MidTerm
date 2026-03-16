@@ -118,7 +118,7 @@ $status = http_response_code() ?: 200;      // ensure numeric status exists
 <body>
     <div class="container">
         <h1>Quotes API</h1>
-        <p class="lead">A tiny quotes service — browse endpoints or get a fresh random quote. Try endpoints directly from this page.</p>
+        <p class="lead">A tiny quotes service browse endpoints or get a fresh random quote. Try endpoints directly from this page.</p>
 
         <div class="quote-card" id="quote-card">
             <blockquote id="quote-text">{$quoteEsc}</blockquote>
