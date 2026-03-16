@@ -1,24 +1,34 @@
 <?php
 // api/config/Database.php
 class Database {
-    private $host = '127.0.0.1';
-    private $db_name = 'quotesdb';
-    private $username = 'root';
-    private $password = ''; // XAMPP default is empty
-    public $conn;
+    private $conn;
 
-    public function getConnection(){
+    public function getConnection() {
         $this->conn = null;
         try {
-            $dsn = "mysql:host={$this->host};dbname={$this->db_name};charset=utf8mb4";
+            $db = parse_url(getenv('DATABASE_URL'));
+
+            $host = $db['host'];
+            $port = $db['port'] ?? 5432;
+            $db_name = ltrim($db['path'], '/');
+            $username = $db['user'];
+            $password = $db['pass'];
+
+            $dsn = "pgsql:host={$host};port={$port};dbname={$db_name}";
+
             $options = [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
             ];
-            $this->conn = new PDO($dsn, $this->username, $this->password, $options);
-        } catch(PDOException $e){
+
+            $this->conn = new PDO($dsn, $username, $password, $options);
+
+        } catch(PDOException $e) {
             http_response_code(500);
-            echo json_encode(["message" => "Database Connection Error"]);
+            echo json_encode([
+                "message" => "Database Connection Error",
+                "error" => $e->getMessage()
+            ]);
             exit;
         }
         return $this->conn;

@@ -1,6 +1,9 @@
 # Use official PHP Apache image
 FROM php:8.2-apache
 
+# Install PostgreSQL PDO extension
+RUN docker-php-ext-install pdo pdo_pgsql
+
 # Copy your API files into the container's web root
 COPY ./api/ /var/www/html/
 
