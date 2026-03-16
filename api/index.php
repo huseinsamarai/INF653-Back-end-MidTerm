@@ -1,5 +1,6 @@
 <?php
 // api/index.php
+// Interactive landing page + OpenAPI + REST routing for Quotes API
 require_once __DIR__ . '/config/Database.php';
 require_once __DIR__ . '/helpers/Response.php';
 
@@ -13,24 +14,35 @@ $authorModel = new Author($db);
 $categoryModel = new Category($db);
 $quoteModel = new Quote($db);
 
-// parse path and method
+// Basic CORS + common headers for all responses
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, Accept');
+
+// Handle preflight
 $method = $_SERVER['REQUEST_METHOD'];
+if ($method === 'OPTIONS') {
+    // Short-circuit preflight requests
+    http_response_code(204);
+    exit;
+}
+
+// parse request path
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
 // If your project is served from a subfolder this trims it out.
-// Example: if SCRIPT_NAME is "/api/index.php" it will remove "/api" from the start of the URI.
+// Example: if SCRIPT_NAME is "/api/index.php" it removes "/api" from start.
 $base = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
 $path = substr($uri, strlen($base));
 $path = trim($path, '/');
 $segments = explode('/', $path);
 $resource = $segments[0] ?? '';
 
+// Query and JSON body
 parse_str($_SERVER['QUERY_STRING'] ?? '', $query);
-
-// read JSON body for POST/PUT/DELETE (may be empty)
 $body = json_decode(file_get_contents('php://input'), true) ?: [];
 
-// Helper functions to check existence
+// Helper existence checks
 function authorExists($db, $id) {
     $stmt = $db->prepare("SELECT id FROM authors WHERE id = ?");
     $stmt->execute([$id]);
@@ -42,11 +54,111 @@ function categoryExists($db, $id) {
     return (bool)$stmt->fetch();
 }
 
-// --- ROOT LANDING PAGE WITH RANDOM QUOTE AND INTERACTIVE BUTTON ---
+// --- Serve OpenAPI JSON ---
+if ($resource === 'openapi.json' || $resource === 'openapi') {
+    // Build server URL dynamically
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'];
+    // base path (where index.php sits)
+    $basePath = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
+    $serverUrl = rtrim($scheme . '://' . $host . $basePath, '/');
+
+    $openapi = [
+        'openapi' => '3.0.0',
+        'info' => [
+            'title' => 'Quotes API',
+            'version' => '1.0.0',
+            'description' => 'Simple Quotes API (quotes, authors, categories)'
+        ],
+        'servers' => [
+            ['url' => $serverUrl]
+        ],
+        'paths' => [
+            '/quotes' => [
+                'get' => [
+                    'summary' => 'List or filter quotes',
+                    'parameters' => [
+                        ['name'=>'id','in'=>'query','schema'=>['type'=>'integer']],
+                        ['name'=>'author_id','in'=>'query','schema'=>['type'=>'integer']],
+                        ['name'=>'category_id','in'=>'query','schema'=>['type'=>'integer']],
+                        ['name'=>'random','in'=>'query','schema'=>['type'=>'boolean']]
+                    ],
+                    'responses' => ['200'=>['description'=>'Array of quotes']]
+                ],
+                'post' => [
+                    'summary' => 'Create a quote',
+                    'requestBody' => ['content'=>['application/json'=>['schema'=>['type'=>'object','properties'=>['quote'=>['type'=>'string'],'author_id'=>['type'=>'integer'],'category_id'=>['type'=>'integer']],'required'=>['quote','author_id','category_id']]]]],
+                    'responses' => ['201'=>['description'=>'Created']]
+                ],
+                'put' => [
+                    'summary' => 'Update a quote',
+                    'requestBody' => ['content'=>['application/json'=>['schema'=>['type'=>'object','properties'=>['id'=>['type'=>'integer'],'quote'=>['type'=>'string'],'author_id'=>['type'=>'integer'],'category_id'=>['type'=>'integer']],'required'=>['id','quote','author_id','category_id']]]]],
+                    'responses' => ['200'=>['description'=>'Updated']]
+                ],
+                'delete' => [
+                    'summary' => 'Delete a quote',
+                    'requestBody' => ['content'=>['application/json'=>['schema'=>['type'=>'object','properties'=>['id'=>['type'=>'integer']],'required'=>['id']]]]],
+                    'responses' => ['200'=>['description'=>'Deleted']]
+                ]
+            ],
+            '/authors' => [
+                'get' => [
+                    'summary' => 'List authors or get by id',
+                    'parameters' => [['name'=>'id','in'=>'query','schema'=>['type'=>'integer']]],
+                    'responses' => ['200'=>['description'=>'Array or single author']]
+                ],
+                'post' => [
+                    'summary' => 'Create author',
+                    'requestBody' => ['content'=>['application/json'=>['schema'=>['type'=>'object','properties'=>['author'=>['type'=>'string']],'required'=>['author']]]]],
+                    'responses' => ['201'=>['description'=>'Created']]
+                ],
+                'put' => [
+                    'summary' => 'Update author',
+                    'requestBody' => ['content'=>['application/json'=>['schema'=>['type'=>'object','properties'=>['id'=>['type'=>'integer'],'author'=>['type'=>'string']],'required'=>['id','author']]]]],
+                    'responses' => ['200'=>['description'=>'Updated']]
+                ],
+                'delete' => [
+                    'summary' => 'Delete author',
+                    'requestBody' => ['content'=>['application/json'=>['schema'=>['type'=>'object','properties'=>['id'=>['type'=>'integer']],'required'=>['id']]]]],
+                    'responses' => ['200'=>['description'=>'Deleted']]
+                ]
+            ],
+            '/categories' => [
+                'get' => [
+                    'summary' => 'List categories or get by id',
+                    'parameters' => [['name'=>'id','in'=>'query','schema'=>['type'=>'integer']]],
+                    'responses' => ['200'=>['description'=>'Array or single category']]
+                ],
+                'post' => [
+                    'summary' => 'Create category',
+                    'requestBody' => ['content'=>['application/json'=>['schema'=>['type'=>'object','properties'=>['category'=>['type'=>'string']],'required'=>['category']]]]],
+                    'responses' => ['201'=>['description'=>'Created']]
+                ],
+                'put' => [
+                    'summary' => 'Update category',
+                    'requestBody' => ['content'=>['application/json'=>['schema'=>['type'=>'object','properties'=>['id'=>['type'=>'integer'],'category'=>['type'=>'string']],'required'=>['id','category']]]]],
+                    'responses' => ['200'=>['description'=>'Updated']]
+                ],
+                'delete' => [
+                    'summary' => 'Delete category',
+                    'requestBody' => ['content'=>['application/json'=>['schema'=>['type'=>'object','properties'=>['id'=>['type'=>'integer']],'required'=>['id']]]]],
+                    'responses' => ['200'=>['description'=>'Deleted']]
+                ]
+            ]
+        ],
+        'components' => new stdClass()
+    ];
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($openapi, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+// --- ROOT LANDING PAGE: random quote + Swagger UI embedded ---
 if ($resource === '' || $resource === 'api') {
     header('Content-Type: text/html; charset=utf-8');
 
-    // Fetch a random quote (quoteModel->get([], true) expected to return array of quotes)
+    // random quote
     $randomQuote = $quoteModel->get([], true);
     $quoteText = $randomQuote[0]['quote'] ?? 'No quotes available';
     $authorName = '';
@@ -54,104 +166,85 @@ if ($resource === '' || $resource === 'api') {
         $author = $authorModel->getById((int)$randomQuote[0]['author_id']);
         $authorName = $author['author'] ?? '';
     }
-
-    // Escape for HTML output
     $quoteEsc = htmlspecialchars($quoteText, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $authorEsc = htmlspecialchars($authorName, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-    echo "<!DOCTYPE html>
+    // swagger-ui assets from CDN (no install required)
+    // using swagger-ui-dist (unpkg)
+    echo "<!doctype html>
 <html lang='en'>
 <head>
-    <meta charset='UTF-8'>
-    <meta name='viewport' content='width=device-width,initial-scale=1'>
-    <title>Quotes API</title>
-    <style>
-        :root { --accent: #0077cc; --bg: #f4f4f9; --card: #ffffff; }
-        body { font-family: Arial, sans-serif; text-align: center; padding: 40px; background: var(--bg); margin:0; }
-        .container { max-width: 960px; margin: 0 auto; padding: 20px; }
-        h1 { color: #222; margin-bottom: 6px; }
-        p.lead { color: #555; margin-top:0; }
-        .quote-card { background: var(--card); border-radius: 10px; padding: 28px; box-shadow: 0 6px 18px rgba(17,17,17,0.06); margin: 28px auto; width: 90%; max-width: 760px; position: relative; }
-        blockquote { font-style: italic; color: #111; margin:0; font-size:1.15rem; line-height:1.5; }
-        .author { display:block; margin-top: 14px; font-weight: 600; color: var(--accent); font-size: 0.98rem; }
-        button { padding: 10px 18px; font-size: 1rem; background: var(--accent); color: white; border: none; border-radius: 8px; cursor: pointer; transition: background .15s ease; }
-        button:hover { background: #005fa3; }
-        .meta-links { margin-top: 18px; }
-        a { color: var(--accent); text-decoration: none; margin: 0 8px; }
-        .small { font-size: .9rem; color: #666; margin-top: 10px; }
-        @media (max-width:600px) { blockquote { font-size:1rem } .quote-card { padding: 18px } }
-    </style>
+  <meta charset='utf-8'/>
+  <meta name='viewport' content='width=device-width, initial-scale=1'/>
+  <title>Quotes API — Explorer</title>
+  <link rel='stylesheet' href='https://unpkg.com/swagger-ui-dist@4.18.3/swagger-ui.css'>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f6f8fb; }
+    .hero { padding: 28px; text-align:center; background: linear-gradient(180deg,#ffffff,#f7fbff); box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+    .quote-card{ max-width:900px; margin: 16px auto; background:white; border-radius:8px; padding:18px 22px; box-shadow:0 6px 18px rgba(17,17,17,0.06); }
+    blockquote{ margin:0; font-style:italic; font-size:1.1rem; color:#222; }
+    .author{ display:block; margin-top:8px; color:#0077cc; font-weight:600; }
+    #swagger { margin: 24px auto; max-width: 1100px; }
+    .top-links { margin-top:10px; font-size:0.95rem; color:#444; }
+    .top-links a{ color:#0077cc; text-decoration:none; margin:0 8px; }
+  </style>
 </head>
 <body>
-    <div class='container'>
-        <h1>Quotes API</h1>
-        <p class='lead'>A tiny quotes service — browse endpoints or get a fresh random quote.</p>
-
-        <div class='quote-card' id='quote-card'>
-            <blockquote id='quote-text'>{$quoteEsc}</blockquote>
-            <span class='author' id='quote-author'>- {$authorEsc}</span>
-        </div>
-
-        <button id='nextQuote'>Next Random Quote</button>
-
-        <div class='meta-links'>
-            <p class='small'>API resources: 
-                <a href='/quotes'>/quotes</a> |
-                <a href='/authors'>/authors</a> |
-                <a href='/categories'>/categories</a>
-            </p>
-        </div>
+  <div class='hero'>
+    <h1>Quotes API Explorer</h1>
+    <p class='top-links'>Try the API from this page (OpenAPI / Swagger UI). Quick links:
+      <a href='/quotes'>/quotes</a> • <a href='/authors'>/authors</a> • <a href='/categories'>/categories</a>
+    </p>
+    <div class='quote-card'>
+      <blockquote id='quote-text'>{$quoteEsc}</blockquote>
+      <span class='author' id='quote-author'>- {$authorEsc}</span>
     </div>
+  </div>
 
-    <script>
-    // Fetch a new random quote and update the page without reload
-    document.getElementById('nextQuote').addEventListener('click', async () => {
-        const quoteBox = document.getElementById('quote-text');
-        const authorBox = document.getElementById('quote-author');
+  <div id='swagger'></div>
 
-        quoteBox.textContent = 'Loading...';
-        authorBox.textContent = '';
-
-        try {
-            const res = await fetch('/quotes?random=true', { cache: 'no-store' });
-            if (!res.ok) throw new Error('Network response not ok');
-            const data = await res.json();
-            if (!Array.isArray(data) || data.length === 0) {
-                quoteBox.textContent = 'No quotes available';
-                authorBox.textContent = '';
-                return;
-            }
-            const q = data[0];
-            // show quote text
-            quoteBox.textContent = q.quote ?? 'No quote';
-            // fetch author name if author_id is present
-            if (q.author_id) {
-                try {
-                    const aRes = await fetch('/authors?id=' + encodeURIComponent(q.author_id));
-                    if (aRes.ok) {
-                        const aData = await aRes.json();
-                        authorBox.textContent = '- ' + (aData.author ?? '');
-                    } else {
-                        authorBox.textContent = '';
-                    }
-                } catch (err) {
-                    authorBox.textContent = '';
-                }
-            } else {
-                authorBox.textContent = '';
-            }
-        } catch (err) {
-            quoteBox.textContent = 'Error fetching quote';
-            authorBox.textContent = '';
-        }
+  <script src='https://unpkg.com/swagger-ui-dist@4.18.3/swagger-ui-bundle.js'></script>
+  <script src='https://unpkg.com/swagger-ui-dist@4.18.3/swagger-ui-standalone-preset.js'></script>
+  <script>
+    // Initialize Swagger UI pointing at our generated OpenAPI JSON
+    window.ui = SwaggerUIBundle({
+      url: '" . htmlspecialchars((isset($_SERVER['HTTPS']) ? 'https://' : 'http://') . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') . '/openapi.json', ENT_QUOTES | ENT_HTML5) . "',
+      dom_id: '#swagger',
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+      layout: 'StandaloneLayout',
+      tryItOutEnabled: true,
+      docExpansion: 'none'
     });
-    </script>
+
+    // Small enhancement: fetch fresh random quote when page loads
+    async function refreshQuote() {
+      try {
+        const res = await fetch('/quotes?random=true', {cache:'no-store'});
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const q = data[0];
+          document.getElementById('quote-text').textContent = q.quote || 'No quote';
+          if (q.author_id) {
+            const aRes = await fetch('/authors?id=' + encodeURIComponent(q.author_id));
+            if (aRes.ok) {
+              const aData = await aRes.json();
+              document.getElementById('quote-author').textContent = '- ' + (aData.author || '');
+            }
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    refreshQuote();
+  </script>
 </body>
 </html>";
     exit;
 }
 
-// --- REST API ROUTING ---
+// --- REST API ROUTING (unchanged behaviour) ---
 switch ($method) {
     case 'GET':
         if ($resource === 'quotes') {
@@ -195,7 +288,6 @@ switch ($method) {
 
     case 'POST':
         if ($resource === 'quotes') {
-            // require: quote, author_id, category_id
             if (empty($body['quote']) || empty($body['author_id']) || empty($body['category_id'])) {
                 Response::json(['message' => 'Missing Required Parameters'], 400);
             }
@@ -226,7 +318,6 @@ switch ($method) {
 
     case 'PUT':
         if ($resource === 'quotes') {
-            // require id, quote, author_id, category_id
             if (empty($body['id']) || empty($body['quote']) || empty($body['author_id']) || empty($body['category_id'])) {
                 Response::json(['message' => 'Missing Required Parameters'], 400);
             }
@@ -260,7 +351,6 @@ switch ($method) {
 
     case 'DELETE':
         if ($resource === 'quotes') {
-            // id must be provided (we accept JSON body or query param)
             $id = $body['id'] ?? $query['id'] ?? null;
             if (!$id) Response::json(['message' => 'Missing Required Parameters'], 400);
             $exists = $quoteModel->get(['id' => (int)$id]);
