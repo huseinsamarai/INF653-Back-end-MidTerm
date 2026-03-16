@@ -67,6 +67,10 @@ if ($resource === '' || $resource === 'api') {
     $quoteEsc = htmlspecialchars((string)$quoteText, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $authorEsc = htmlspecialchars((string)$authorName, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
+    // safe defaults to avoid "undefined variable" warnings
+$time = date('c');                          // ISO 8601 timestamp
+$status = http_response_code() ?: 200;      // ensure numeric status exists
+
     echo <<<HTML
 <!DOCTYPE html>
 <html lang="en">
