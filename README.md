@@ -481,7 +481,7 @@ Use environment variables for production deployments.
 
 # Deployment Notes
 
-Local deployment (recommended):
+Local deployment:
 
 ```
 XAMPP
@@ -515,6 +515,7 @@ INF653-midterm/
 │  └─ helpers/Response.php
 ├─ sql/
 │  └─ create_quotesdb_mysql.sql
+|-- Dockerfile
 └─ README.md
 ```
 
