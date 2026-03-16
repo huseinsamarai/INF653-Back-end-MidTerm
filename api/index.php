@@ -532,7 +532,6 @@ switch ($method) {
 
     case 'DELETE':
         if ($resource === 'quotes') {
-            // id must be provided (we accept JSON body or query param)
             $id = $body['id'] ?? $query['id'] ?? null;
             if (!$id) Response::json(['message' => 'Missing Required Parameters'], 400);
             $exists = $quoteModel->get(['id' => (int)$id]);
