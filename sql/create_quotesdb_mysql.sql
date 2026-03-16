@@ -69,4 +69,4 @@ INSERT INTO quotes (id, quote, author_id, category_id) VALUES
 -- reset AUTO_INCREMENT in case someone inserts later without id
 ALTER TABLE authors AUTO_INCREMENT = 6;
 ALTER TABLE categories AUTO_INCREMENT = 6;
-ALTER TABLE quotes AUTO_INCREMENT = 26;
+ALTER TABLE quotes AUTO_INCREMENT = 26;  
