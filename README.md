@@ -1,7 +1,4 @@
 # INF653 Midterm — Quotes REST API
-
-**Simple, exact README you can paste into your repository.**
-
 ---
 
 ## Description
@@ -585,17 +582,6 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 ```
-
----
-
-# Tests & Submission Checklist
-
-- [ ] GitHub repository created
-- [ ] API runs locally
-- [ ] Database seed executed
-- [ ] Required IDs exist
-- [ ] One-page PDF challenges document included
-- [ ] Postman requests tested
 
 ---
 
