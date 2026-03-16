@@ -7,6 +7,10 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-install pdo pdo_pgsql \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Set a default DATABASE_URL for local testing (optional)
+# Replace with your local PostgreSQL credentials if needed
+ENV DATABASE_URL="postgresql://postgres:postgres@host.docker.internal:5432/quotesdb_ptm8"
+
 # Copy your API files into the container's web root
 COPY ./api/ /var/www/html/
 
