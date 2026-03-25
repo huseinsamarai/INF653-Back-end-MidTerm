@@ -18,15 +18,22 @@ $authorModel = new Author($db);
 $categoryModel = new Category($db);
 $quoteModel = new Quote($db);
 
-// parse path and method
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-$uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$uriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
-// compute base and path robustly
-$scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-$base = rtrim(dirname($scriptName), '/\\');
-$path = substr($uri, strlen($base));
-$path = trim((string)$path, '/');
+/*
+ * Support both:
+ *   /quotes
+ *   /api/quotes
+ * by removing only the leading "/api" segment when present.
+ */
+if ($uriPath === '/api') {
+    $uriPath = '/';
+} elseif (str_starts_with($uriPath, '/api/')) {
+    $uriPath = substr($uriPath, 4); // remove "/api"
+}
+
+$path = trim($uriPath, '/');
 $segments = $path === '' ? [] : explode('/', $path);
 $resource = $segments[0] ?? '';
 
@@ -51,7 +58,7 @@ function categoryExists(PDO $db, int $id): bool {
 }
 
 // --- ROOT LANDING PAGE WITH RANDOM QUOTE AND INTERACTIVE BUTTON ---
-if ($resource === '' || $resource === 'api') {
+if ($resource === '') {
     header('Content-Type: text/html; charset=utf-8');
 
     // Fetch a random quote (quoteModel->get([], true) expected to return array of quotes)
