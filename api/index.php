@@ -4,13 +4,6 @@ declare(strict_types=1);
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
-/*
-|--------------------------------------------------------------------------
-| CORS + JSON headers
-|--------------------------------------------------------------------------
-| These must be sent before any output.
-| Also handle OPTIONS preflight before touching the database.
-*/
 header('Access-Control-Allow-Origin: *');
 header('Vary: Origin');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
@@ -32,7 +25,7 @@ $db = (new Database())->getConnection();
 
 $authorModel = new Author($db);
 $categoryModel = new Category($db);
-$quoteModel   = new Quote($db);
+$quoteModel = new Quote($db);
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $uriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
@@ -42,7 +35,6 @@ $uriPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 | Support both:
 |   /api/quotes/
 |   /INF653-midterm/api/quotes/
-|   /quotes/
 |--------------------------------------------------------------------------
 */
 if ($uriPath === '/api') {
@@ -50,7 +42,7 @@ if ($uriPath === '/api') {
 } else {
     $apiPos = strpos($uriPath, '/api/');
     if ($apiPos !== false) {
-        $uriPath = substr($uriPath, $apiPos + 4); // leaves "/quotes/"
+        $uriPath = substr($uriPath, $apiPos + 4);
     } elseif (str_starts_with($uriPath, '/api')) {
         $uriPath = substr($uriPath, 4);
     }
@@ -82,16 +74,31 @@ function categoryExists(PDO $db, int $id): bool
     return (bool) $stmt->fetchColumn();
 }
 
-/*
-|--------------------------------------------------------------------------
-| Root endpoint
-|--------------------------------------------------------------------------
-| The assignment says responses should be JSON
-*/
+function publicQuote(array $row): array
+{
+    return [
+        'id' => (int) $row['id'],
+        'quote' => $row['quote'],
+        'author' => $row['author'],
+        'category' => $row['category'],
+    ];
+}
+
+function publicQuoteList(array $rows): array
+{
+    return array_map('publicQuote', $rows);
+}
+
+function firstQuoteOrEmpty(array $rows): array
+{
+    if (!$rows) {
+        return [];
+    }
+    return publicQuote($rows[0]);
+}
+
 if ($resource === '') {
-    Response::json([
-        'message' => 'Quotes API'
-    ]);
+    Response::json(['message' => 'Quotes API']);
 }
 
 switch ($method) {
@@ -111,13 +118,25 @@ switch ($method) {
 
             $random = isset($query['random']) && $query['random'] === 'true';
 
+            if (isset($filters['id'])) {
+                $quote = $quoteModel->getById($filters['id']);
+                if (!$quote) {
+                    Response::json(['message' => 'No Quotes Found'], 200);
+                }
+                Response::json(publicQuote($quote));
+            }
+
             $results = $quoteModel->get($filters, $random);
 
             if (!$results) {
                 Response::json(['message' => 'No Quotes Found'], 200);
             }
 
-            Response::json($results);
+            if ($random) {
+                Response::json(firstQuoteOrEmpty($results));
+            }
+
+            Response::json(publicQuoteList($results));
         }
 
         if ($resource === 'authors') {
@@ -157,18 +176,18 @@ switch ($method) {
     case 'POST':
         if ($resource === 'quotes') {
             if (empty($body['quote']) || empty($body['author_id']) || empty($body['category_id'])) {
-                Response::json(['message' => 'Missing Required Parameters'], 400);
+                Response::json(['message' => 'Missing Required Parameters'], 200);
             }
 
             $authorId = (int) $body['author_id'];
             $categoryId = (int) $body['category_id'];
 
             if (!authorExists($db, $authorId)) {
-                Response::json(['message' => 'author_id Not Found'], 400);
+                Response::json(['message' => 'author_id Not Found'], 200);
             }
 
             if (!categoryExists($db, $categoryId)) {
-                Response::json(['message' => 'category_id Not Found'], 400);
+                Response::json(['message' => 'category_id Not Found'], 200);
             }
 
             $created = $quoteModel->create((string) $body['quote'], $authorId, $categoryId);
@@ -177,7 +196,7 @@ switch ($method) {
 
         if ($resource === 'authors') {
             if (empty($body['author'])) {
-                Response::json(['message' => 'Missing Required Parameters'], 400);
+                Response::json(['message' => 'Missing Required Parameters'], 200);
             }
 
             $created = $authorModel->create((string) $body['author']);
@@ -186,7 +205,7 @@ switch ($method) {
 
         if ($resource === 'categories') {
             if (empty($body['category'])) {
-                Response::json(['message' => 'Missing Required Parameters'], 400);
+                Response::json(['message' => 'Missing Required Parameters'], 200);
             }
 
             $created = $categoryModel->create((string) $body['category']);
@@ -198,24 +217,24 @@ switch ($method) {
     case 'PUT':
         if ($resource === 'quotes') {
             if (empty($body['id']) || empty($body['quote']) || empty($body['author_id']) || empty($body['category_id'])) {
-                Response::json(['message' => 'Missing Required Parameters'], 400);
+                Response::json(['message' => 'Missing Required Parameters'], 200);
             }
 
             $id = (int) $body['id'];
             $authorId = (int) $body['author_id'];
             $categoryId = (int) $body['category_id'];
 
-            $existing = $quoteModel->get(['id' => $id]);
+            $existing = $quoteModel->getById($id);
             if (!$existing) {
                 Response::json(['message' => 'No Quotes Found'], 200);
             }
 
             if (!authorExists($db, $authorId)) {
-                Response::json(['message' => 'author_id Not Found'], 400);
+                Response::json(['message' => 'author_id Not Found'], 200);
             }
 
             if (!categoryExists($db, $categoryId)) {
-                Response::json(['message' => 'category_id Not Found'], 400);
+                Response::json(['message' => 'category_id Not Found'], 200);
             }
 
             $updated = $quoteModel->update($id, (string) $body['quote'], $authorId, $categoryId);
@@ -224,7 +243,7 @@ switch ($method) {
 
         if ($resource === 'authors') {
             if (empty($body['id']) || empty($body['author'])) {
-                Response::json(['message' => 'Missing Required Parameters'], 400);
+                Response::json(['message' => 'Missing Required Parameters'], 200);
             }
 
             $id = (int) $body['id'];
@@ -240,7 +259,7 @@ switch ($method) {
 
         if ($resource === 'categories') {
             if (empty($body['id']) || empty($body['category'])) {
-                Response::json(['message' => 'Missing Required Parameters'], 400);
+                Response::json(['message' => 'Missing Required Parameters'], 200);
             }
 
             $id = (int) $body['id'];
@@ -261,12 +280,12 @@ switch ($method) {
             $id = $body['id'] ?? $query['id'] ?? null;
 
             if (!$id) {
-                Response::json(['message' => 'Missing Required Parameters'], 400);
+                Response::json(['message' => 'Missing Required Parameters'], 200);
             }
 
             $id = (int) $id;
 
-            $existing = $quoteModel->get(['id' => $id]);
+            $existing = $quoteModel->getById($id);
             if (!$existing) {
                 Response::json(['message' => 'No Quotes Found'], 200);
             }
@@ -283,7 +302,7 @@ switch ($method) {
             $id = $body['id'] ?? $query['id'] ?? null;
 
             if (!$id) {
-                Response::json(['message' => 'Missing Required Parameters'], 400);
+                Response::json(['message' => 'Missing Required Parameters'], 200);
             }
 
             $id = (int) $id;
@@ -305,7 +324,7 @@ switch ($method) {
             $id = $body['id'] ?? $query['id'] ?? null;
 
             if (!$id) {
-                Response::json(['message' => 'Missing Required Parameters'], 400);
+                Response::json(['message' => 'Missing Required Parameters'], 200);
             }
 
             $id = (int) $id;
